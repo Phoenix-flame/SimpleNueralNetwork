@@ -8,7 +8,7 @@ import random
 import functools
 import numpy as np
 import pandas as pd
-from utility import alphabetize, abs_mean, sigmoid, d_sigmoid
+from utility import alphabetize, abs_mean, sigmoid, d_sigmoid, CrossEntropy
 
 class ValuedElement(object):
     """
@@ -155,6 +155,15 @@ class Neuron(DifferentiableElement):
         """
         return weight.get_name() in self.get_descendant_weights()
 
+    def has_descendant_weight(self, weight):
+        if self.has_weight(weight):
+            return True
+        for i in self.get_inputs():
+            if isinstance(i,Neuron):
+                if i.has_descendant_weight(weight):
+                    return True
+        return False
+
     def get_weight_nodes(self):
         return self.my_weights
 
@@ -184,6 +193,8 @@ class Neuron(DifferentiableElement):
         return out
         raise NotImplementedError("Implement me!")
 
+    
+
     def dOutdX(self, elem):
         # Implement compute_doutdx instead!!
         if self.use_cache:
@@ -193,6 +204,12 @@ class Neuron(DifferentiableElement):
             return self.my_doutdx[elem]
         return self.compute_doutdx(elem)
 
+
+    def get_ascendant_weigth_of(self, elem):
+        for w in self.get_weights():
+            if self.isa_descendant_weight_of(elem, w):
+                return w
+    
     def compute_doutdx(self, elem):
         """
         Returns the derivative of this Neuron node, with respect to weight
@@ -202,9 +219,10 @@ class Neuron(DifferentiableElement):
 
         returns: number (float/int)
         """
-        grad = self.my_inputs[0].my_value
-        grad *= d_sigmoid(self.output())
-        return grad
+        if self.has_descendant_weight(elem):
+            return self.output() * (1 - self.output()) * sum([ i.output() if w.get_name() == elem.get_name() else w.get_value() * i.dOutdX(elem) for w,i in zip(self.get_weights(),self.get_inputs())])
+        else:
+            return 0
         
         raise NotImplementedError("Implement me!")
 
@@ -241,8 +259,8 @@ class PerformanceElem(DifferentiableElement):
         
         returns: number (float/int)
         """
-        
-        return (0.5) * np.power(self.my_desired_val - self.my_input.output(), 2)
+        # return CrossEntropy(self.my_desired_val, self.my_input.output())
+        return (-0.5) * np.power(self.my_desired_val - self.my_input.output(), 2)
         
         raise NotImplementedError("Implement me!")
 
@@ -260,7 +278,7 @@ class PerformanceElem(DifferentiableElement):
         delta = (self.my_desired_val - self.my_input.output())
         grad = delta * self.my_input.dOutdX(elem)
         
-        return -1 * grad
+        return 1 * grad
         raise NotImplementedError("Implement me!")
 
     def set_desired(self,new_desired):
@@ -405,7 +423,7 @@ def train(network,
           data,      # training data
           rate=1.0,  # learning rate
           target_abs_mean_performance=0.0001,
-          max_iterations=10000,
+          max_iterations=100,
           verbose=False):
     """Run back-propagation training algorithm on a given network.
     with training [data].   The training runs for [max_iterations]
@@ -445,7 +463,6 @@ def train(network,
 
         # compute the mean performance value
         abs_mean_performance = abs_mean(performances)
-        print(abs_mean_performance)
 
         if abs_mean_performance < target_abs_mean_performance:
             if verbose:

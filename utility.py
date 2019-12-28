@@ -16,3 +16,10 @@ def sigmoid(x):
 
 def d_sigmoid(x):
     return sigmoid(x) * (1 - sigmoid(x))
+
+
+def CrossEntropy(yHat, y):
+    if y == 1:
+      return -np.log(yHat)
+    else:
+      return -np.log(1 - yHat)
