@@ -2,6 +2,8 @@
 # Training and Test Data used in neural_net_tester.py
 #
 
+import pandas as pd
+
 """
 1++
 0-+

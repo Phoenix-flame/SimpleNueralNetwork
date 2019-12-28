@@ -1,12 +1,13 @@
 # Unit tester for neural_net.py
 #
 import sys
+import pandas as pd
 
 from neural_net import train, test,\
      make_neural_net_basic,\
      make_neural_net_two_layer,\
-     make_neural_net_challenging,\
-     make_neural_net_large
+     make_neural_net_challenging
+    #  make_neural_net_large
 
 from neural_net_data import simple_data_sets,\
      harder_data_sets,\

@@ -7,7 +7,8 @@ import math
 import random
 import functools
 import numpy as np
-from utility import alphabetize, abs_mean
+import pandas as pd
+from utility import alphabetize, abs_mean, sigmoid, d_sigmoid
 
 class ValuedElement(object):
     """
@@ -60,6 +61,7 @@ class Input(ValuedElement,DifferentiableElement):
         
         returns: number (float or int)
         """
+        return self.my_value
         raise NotImplementedError("Implement me!")
 
     def dOutdX(self, elem):
@@ -71,6 +73,7 @@ class Input(ValuedElement,DifferentiableElement):
 
         returns: number (float or int)
         """
+        return 0
         raise NotImplementedError("Implement me!")
 
 class Weight(ValuedElement):
@@ -175,6 +178,10 @@ class Neuron(DifferentiableElement):
 
         returns: number (float or int)
         """
+        inputs_, weights_ = np.array([x.my_value for x in self.my_inputs]), np.array([x.my_value for x in self.my_weights])
+        
+        out = sigmoid(np.sum(inputs_*weights_))
+        return out
         raise NotImplementedError("Implement me!")
 
     def dOutdX(self, elem):
@@ -195,6 +202,10 @@ class Neuron(DifferentiableElement):
 
         returns: number (float/int)
         """
+        grad = self.my_inputs[0].my_value
+        grad *= d_sigmoid(self.output())
+        return grad
+        
         raise NotImplementedError("Implement me!")
 
     def get_weights(self):
@@ -230,6 +241,9 @@ class PerformanceElem(DifferentiableElement):
         
         returns: number (float/int)
         """
+        
+        return (0.5) * np.power(self.my_desired_val - self.my_input.output(), 2)
+        
         raise NotImplementedError("Implement me!")
 
     def dOutdX(self, elem):
@@ -241,6 +255,12 @@ class PerformanceElem(DifferentiableElement):
 
         returns: number (int/float)
         """
+        
+        # print(self.my_input)
+        delta = (self.my_desired_val - self.my_input.output())
+        grad = delta * self.my_input.dOutdX(elem)
+        
+        return -1 * grad
         raise NotImplementedError("Implement me!")
 
     def set_desired(self,new_desired):
@@ -332,6 +352,8 @@ def make_neural_net_basic():
     w1A = Weight('w1A', 1)
     w2A = Weight('w2A', 1)
     wA  = Weight('wA', 1)
+    
+    
 
     # Inputs must be in the same order as their associated weights
     A = Neuron('A', [i1,i2,i0], [w1A,w2A,wA])
@@ -407,6 +429,7 @@ def train(network,
 
             # compute all the weight updates
             for w in network.weights:
+                # print(w.my_value)
                 w.set_next_value(w.get_value() +
                                  rate * network.performance.dOutdX(w))
 
@@ -422,6 +445,7 @@ def train(network,
 
         # compute the mean performance value
         abs_mean_performance = abs_mean(performances)
+        print(abs_mean_performance)
 
         if abs_mean_performance < target_abs_mean_performance:
             if verbose:
@@ -440,7 +464,7 @@ def train(network,
                     abs_mean_performance))
 
     print('weights:', network.weights)
-    plot_decision_boundary(network, data)
+    # plot_decision_boundary(network, data)
 
 
 def test(network, data, verbose=False):
