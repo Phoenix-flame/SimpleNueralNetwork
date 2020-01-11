@@ -159,7 +159,7 @@ class Neuron(DifferentiableElement):
         if self.has_weight(weight):
             return True
         for i in self.get_inputs():
-            if isinstance(i,Neuron):
+            if isinstance(i, Neuron):
                 if i.has_descendant_weight(weight):
                     return True
         return False
@@ -187,9 +187,10 @@ class Neuron(DifferentiableElement):
 
         returns: number (float or int)
         """
-        inputs_, weights_ = np.array([x.my_value for x in self.my_inputs]), np.array([x.my_value for x in self.my_weights])
-        
-        out = sigmoid(np.sum(inputs_*weights_))
+        inputs_, weights_ = np.array([x.output() for x in self.my_inputs]), np.array([x.my_value for x in self.my_weights])
+        # print(inputs_)
+        # print(weights_)
+        out = sigmoid(np.sum(inputs_ * weights_))
         return out
         raise NotImplementedError("Implement me!")
 
@@ -220,7 +221,13 @@ class Neuron(DifferentiableElement):
         returns: number (float/int)
         """
         if self.has_descendant_weight(elem):
-            return self.output() * (1 - self.output()) * sum([ i.output() if w.get_name() == elem.get_name() else w.get_value() * i.dOutdX(elem) for w,i in zip(self.get_weights(),self.get_inputs())])
+            s = 0
+            for w, i in zip(self.get_weights(), self.get_inputs()):
+                if w.get_name() == elem.get_name():
+                    s += i.output()
+                else:
+                    s += w.get_value() * i.dOutdX(elem)
+            return self.output() * (1 - self.output()) * s
         else:
             return 0
         
@@ -288,6 +295,40 @@ class PerformanceElem(DifferentiableElement):
         return self.my_input
 
 
+
+
+
+
+
+
+class RegularizedPerformanceElem(PerformanceElem):
+    def __init__(self, input, desired_value):
+        assert isinstance(input, (Input, Neuron))
+        PerformanceElem.__init__(self, input, desired_value)
+        self.l = 0.00005
+        
+    def output(self):
+        grad_vec = np.array([x.my_value for x in self.my_input.my_weights])
+        return (-0.5) * np.power(self.my_desired_val - self.my_input.output(), 2) - ((self.l/2.0) * (np.linalg.norm(grad_vec)**2))
+    def dOutdX(self, elem):
+        delta = (self.my_desired_val - self.my_input.output())
+        grad = delta * self.my_input.dOutdX(elem) 
+        grad -= self.l * elem.my_value  
+        return 1 * grad
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class Network(object):
     def __init__(self,performance_node,neurons):
         self.inputs =  []
@@ -307,7 +348,7 @@ class Network(object):
             self.weights += n.get_weight_nodes()
 
     @classmethod
-    def from_layers(self,performance_node,layers):
+    def from_layers(self, performance_node, layers):
         neurons = []
         for layer in layers:
             if layer.get_name() != 'l0':
@@ -337,6 +378,10 @@ def random_weight():
     # When training larger networks, initialization with small, random
     # values centered around 0 is also common, like the line below:
     # return np.random.normal(0,0.1)
+
+
+
+
 
 def make_neural_net_basic():
     """
@@ -391,7 +436,33 @@ def make_neural_net_two_layer():
     See 'make_neural_net_basic' for required naming convention for inputs,
     weights, and neurons.
     """
-    raise NotImplementedError("Implement me!")
+    i0 = Input('i0', -1.0)
+    i1 = Input('i1', 0.0)
+    i2 = Input('i2', 0.0)
+
+    seed_random()
+    w1A = Weight('w1A', random_weight())
+    w2A = Weight('w2A', random_weight())
+    wA  = Weight('wA', random_weight())
+    
+    w1B = Weight('w1B', random_weight())
+    w2B = Weight('w2B', random_weight())
+    wB  = Weight('wB', random_weight())
+    
+    wAC = Weight('wAC', random_weight())
+    wBC = Weight('wBC', random_weight())
+    wC  = Weight('wC', random_weight())
+        
+
+    A = Neuron('A', [i1, i2, i0], [w1A, w2A, wA])
+    B = Neuron('B', [i1, i2, i0], [w1B, w2B, wB])
+    C = Neuron('C', [A, B, i0], [wAC, wBC, wC])
+    P = PerformanceElem(C, 0.0)
+
+    # Package all the components into a network
+    # First list the PerformanceElem P, Then list all neurons afterwards
+    net = Network(P,[A, B, C])
+    return net
 
 
 def make_neural_net_challenging():
@@ -404,9 +475,17 @@ def make_neural_net_challenging():
     weights, and neurons.
     """
     raise NotImplementedError("Implement me!")
-   
+ 
+ 
+def initWeights(neuron):
+    weights = [Weight('w1' + str(neuron), random_weight()),    ## First input
+                    Weight('w2' + str(neuron), random_weight()),  ## Second input
+                    Weight('w' + str(neuron), random_weight())]   ## Bias
+    
+    return weights
+  
 
-def make_neural_net_two_moons():
+def make_neural_net_large():
     """
     Create an overparametrized network with 40 neurons in the first layer
     and a single neuron in the last. This network is more than enough to solve
@@ -416,19 +495,135 @@ def make_neural_net_two_moons():
     See 'make_neural_net_basic' for required naming convention for inputs,
     weights, and neurons.
     """
-    raise NotImplementedError("Implement me!")
+    i0 = Input('i0', -1.0)
+    i1 = Input('i1', 0.0)
+    i2 = Input('i2', 0.0)
+    
+    
+    seed_random()
+    hidden_layer = []
+    output_layer = []
+    for i in range(40):
+        hidden_layer.append(Neuron('A' + str(i+1), [i1, i2, i0], initWeights('A' + str(i+1))))
+        output_layer.append(Weight('wA' + str(i+1) + 'B', random_weight()))
+    
+    hidden_layer.append(i0)        
+    output_layer.append(Weight('wB', random_weight()))
+    
+        
 
+    B = Neuron('C', hidden_layer, output_layer)
+    P = RegularizedPerformanceElem(B, 0.0)
+
+    # Package all the components into a network
+    # First list the PerformanceElem P, Then list all neurons afterwards
+    net = Network(P,hidden_layer[:-1] + [B])
+    return net
+
+
+
+# It's my implementation
+from matplotlib import pyplot as plt
+
+t = 0
+def plot_decision_boundary(network, xmin, xmax, ymin, ymax):
+    global t
+    x = np.linspace(xmin, xmax, 100)
+    y = np.linspace(ymin, ymax, 100)
+    
+    xx, yy = np.meshgrid(x, y)
+    
+    
+    xx = xx.reshape((xx.shape[0] * xx.shape[1],))
+    yy = yy.reshape((yy.shape[0] * yy.shape[1],))
+    print(xx.shape, yy.shape)
+    
+    data_x, data_y = [], []
+
+    print('mesh_grid', xx.shape, yy.shape)
+    
+    for _x, _y in zip(xx, yy):
+        network.clear_cache()
+        # print(_x, _y)
+        network.inputs[0].set_value(_x)
+        network.inputs[1].set_value(_y)
+
+        # clear cached calculations
+
+        result = network.output.output()
+        prediction = round(result)
+        if (prediction < 0.5):
+            data_x.append(_x)
+            data_y.append(_y)
+        network.clear_cache()
+    data_x, data_y = np.array(data_x), np.array(data_y)
+    plt.figure()
+    plt.scatter(data_x, data_y)
+    # plt.show()
+    plt.savefig('./' + str(t) + '.png')
+    t += 1
+
+
+def verify_gradients(network, data):
+    print('Verifying gradients')
+    epsilon = 1e-5
+    
+    backprop_gradients = []
+    # network.clear_cache()
+    # for i in range(len(network.inputs)):
+    #     network.inputs[i].set_value(data[i])
+
+    # # set network desired output
+    # network.performance.set_desired(data[-1])
+    for w in network.weights:
+        backprop_gradients.append(network.performance.dOutdX(w))
+    
+           
+    # Approximation
+    # set network inputs
+    # for i in range(len(network.inputs)):
+    #     network.inputs[i].set_value(data[i])
+
+    # # set network desired output
+    # network.performance.set_desired(data[-1])
+
+    # clear cached calculations
+    network.clear_cache()
+    J = network.performance.output()
+    J_epsilon = []
+    for w in network.weights:
+        network.clear_cache()
+        w.my_value += epsilon
+        J_epsilon.append(network.performance.output())
+        w.my_value -= epsilon
+    
+    J_epsilon = np.array(J_epsilon)
+    gradapprox = (J_epsilon - J) / (epsilon)
+    # print('Approximation', backprop_gradients, gradapprox)
+    
+    grad = np.array(backprop_gradients)
+    numerator = np.linalg.norm(grad - gradapprox)
+    denominator = np.linalg.norm(grad) + np.linalg.norm(gradapprox)
+    difference = numerator / denominator
+    
+    if difference < 1e-4:
+        print('The gradient is correct')
+    else:
+        print('The gradient is wrong', difference)
+    
+    
 
 def train(network,
           data,      # training data
           rate=1.0,  # learning rate
-          target_abs_mean_performance=0.0001,
-          max_iterations=100,
+          target_abs_mean_performance=0.00001,
+          max_iterations=1000,
           verbose=False):
     """Run back-propagation training algorithm on a given network.
     with training [data].   The training runs for [max_iterations]
     or until [target_abs_mean_performance] is reached.
     """
+    f = open('loss.log', 'w')
 
     iteration = 0
     while iteration < max_iterations:
@@ -447,10 +642,10 @@ def train(network,
 
             # compute all the weight updates
             for w in network.weights:
-                # print(w.my_value)
                 w.set_next_value(w.get_value() +
                                  rate * network.performance.dOutdX(w))
 
+            # verify_gradients(network)
             # set the new weights
             for w in network.weights:
                 w.update()
@@ -479,9 +674,12 @@ def train(network,
             print("iter %d: mean-abs-performance = %1.6f"\
                   %(iteration,
                     abs_mean_performance))
+            f.write(str(abs_mean_performance) + '\n')
 
+    f.close()
     print('weights:', network.weights)
-    # plot_decision_boundary(network, data)
+    verify_gradients(network, data[0])
+    plot_decision_boundary(network, *[-6, 6, -6, 6])
 
 
 def test(network, data, verbose=False):
